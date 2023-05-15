@@ -1,0 +1,35 @@
+<title>Binance Verileri</title>
+</head>
+<body>
+    <h1>Binance Verileri</h1>
+
+    <table>
+        <tr>
+            <th>Coin</th>
+            <th>Zaman Aralığı</th>
+            <th>MACD</th>
+            <th>MACD Signal</th>
+        </tr>
+        {% for symbol, data in data.items() %}
+        <tr>
+            <td>{{ data['coin'] }}</td>
+            <td>{{ data['timeframe'] }}</td>
+            <td>
+                <ul>
+                    {% for value in data['macd'] %}
+                    <li>{{ value }}</li>
+                    {% endfor %}
+                </ul>
+            </td>
+            <td>
+                <ul>
+                    {% for value in data['macdsignal'] %}
+                    <li>{{ value }}</li>
+                    {% endfor %}
+                </ul>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
