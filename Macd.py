@@ -53,6 +53,7 @@ def get_macd_data():
                     'interval': interval
                 })
 
+    result = {k: v for k, v in result.items() if v}  # Remove empty entries
     cache.set('macd_data', result, timeout=3600)
     return jsonify(result)
 
@@ -63,6 +64,7 @@ def get_macd_interval(interval):
         return jsonify({'error': 'MACD data not available'})
 
     result = {symbol: [entry for entry in data[symbol] if entry['interval'] == interval] for symbol in data}
+    result = {k: v for k, v in result.items() if v}  # Remove empty entries
     cache.set('macd_data_interval', result, timeout=3600)
     return jsonify(result)
 
