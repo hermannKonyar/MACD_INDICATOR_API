@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from flask_caching import Cache
 import time
 import requests
+import json
 import numpy as np
 import talib
 
@@ -17,27 +18,29 @@ def get_stoch_data():
 
     for symbol in symbols:
         for interval in intervals:
-            url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
-            response = requests.get(url)
-            
+            response = requests.get(f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}")
             if response.status_code != 200:
                 continue
 
             data = response.json()
-            
-            high_prices = np.array([float(item[2]) for item in data])
-            low_prices = np.array([float(item[3]) for item in data])
-            close_prices = np.array([float(item[4]) for item in data])
 
-            slowk, slowd = talib.STOCH(high_prices, low_prices, close_prices, fastk_period=5, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
-            
+            high_prices = [float(item[2]) for item in data]
+            low_prices = [float(item[3]) for item in data]
+            close_prices = [float(item[4]) for item in data]
+
+            high_prices_np = np.array(high_prices)
+            low_prices_np = np.array(low_prices)
+            close_prices_np = np.array(close_prices)
+
+            slowk, slowd = talib.STOCH(high_prices_np, low_prices_np, close_prices_np)
+
             previous_slowk, previous_slowd = slowk[-2], slowd[-2]
             current_slowk, current_slowd = slowk[-1], slowd[-1]
 
-            if (previous_slowk < previous_slowd) and (current_slowk > current_slowd) and (current_slowd > 20) and (current_slowk < 20) and (abs(current_slowd-current_slowk)<4 or abs(current_slowk-current_slowd<4)):
-                signal = 'BUY'
-            elif (previous_slowk > previous_slowd) and (current_slowk < current_slowd) and (current_slowd > 80) and (current_slowk > 80) and (abs(current_slowd-current_slowk)<4 or abs(current_slowk-current_slowd<4)):
+            if previous_slowk > previous_slowd and current_slowk < current_slowd and current_slowk>80:
                 signal = 'SELL'
+            elif previous_slowk < previous_slowd and current_slowk > current_slowd and current_slowk<20:
+                signal = 'BUY'
             else:
                 signal = ''
 
@@ -48,25 +51,29 @@ def get_stoch_data():
                     result[symbol] = []
                 result[symbol].append({
                     'coin': symbol,
-                    'signal': signal,
+                    'cross': signal,
                     'slowk': current_slowk,
                     'slowd': current_slowd,
                     'date': timestamp,
                     'interval': interval
                 })
 
-    cache.set('stoch_data', result, timeout=500)
+    result = {k: v for k, v in result.items() if v}  # Remove empty entries
+    cache.set('stoch_data', result, timeout=3600)
     return jsonify(result)
+
 
 @app.route('/stoch/<string:interval>')
 def get_stoch_interval(interval):
     data = cache.get('stoch_data')
     if data is None:
-        return jsonify({'error': 'Stochastic Oscillator data not available'})
+        return jsonify({'error': 'Stochastic data not available'})
 
     result = {symbol: [entry for entry in data[symbol] if entry['interval'] == interval] for symbol in data}
-    cache.set('stoch_data_interval', result, timeout=500)
+    result = {k: v for k, v in result.items() if v}  # Remove empty entries
+    cache.set('stoch_data_interval', result, timeout=3600)
     return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

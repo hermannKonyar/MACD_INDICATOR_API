@@ -1,59 +1,31 @@
-
-
-import logging
 import time
-import talib
-import requests
-import numpy as np
-from telegram.ext import Updater, CallbackContext
+import pandas as pd
+import pandas_ta as ta
+from binance.client import Client
+from python_telegram_bot import telegram
 
-# Telegram botunun günlük kayıtlarını tutmak için loglama ayarları
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                     level=logging.INFO)
+binance_client = Client("wrfybb7xo2Cvze0Ii0zOO8FNkWIX4UCIWtBdONPZH7PD5nmP10pWVGDig9zFuffF", "oPEp31iGEumVcl9NLcDTkwq3Q8F3A653ua2QYy33N1puebUsTbNdQo5gc8kP4UOR")
+bot = telegram.Bot(token="6247116301:AAFShT7Nk9yn-Hm5AfbPYPAO7EMDBV5TYOY")
 
-# Botun anlık olarak coin bilgilerini kontrol ettiği fonksiyon
-def check_coin(context: CallbackContext):
-    # ETHTRY için anlık fiyatı alma
-    response = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHTRY")
-    data = response.json()
-    current_price = float(data['price'])
+def get_stoch(symbol, interval, k, d):
+    klines = binance_client.get_klines(symbol=symbol, interval=interval)
+    df = pd.DataFrame(klines, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_av', 'trades', 'tb_base_av', 'tb_quote_av', 'ignore'])
+    df = df.astype(float)
+    stoch = ta.stoch(df['high'], df['low'], df['close'], k=k, d=d)
+    return stoch
 
-    # Son 26 gün için ETHTRY fiyat verilerini alma
-    response = requests.get("https://api.binance.com/api/v3/klines?symbol=ETHTRY&interval=1d&limit=26")
-    data = response.json()
-    close_prices = np.array([float(entry[4]) for entry in data])
+def send_signal(symbol, chat_id):
+    try:
+        stoch = get_stoch(symbol, "1m", 14, 3)
+        if stoch.iloc[-1]['STOCHk_14_3_3'] > stoch.iloc[-1]['STOCHd_14_3_3']:
+            bot.send_message(chat_id=chat_id, text=f"{symbol} Al")
+        elif stoch.iloc[-1]['STOCHk_14_3_3'] < stoch.iloc[-1]['STOCHd_14_3_3']:
+            bot.send_message(chat_id=chat_id, text=f"{symbol} Sat")
+    except Exception as e:
+        bot.send_message(chat_id=chat_id, text=f"Error occurred: {e}")
 
-    # MACD hesaplama
-    macd, macd_signal, _ = talib.MACD(close_prices)
-
-    # MACD histogramını kontrol etme
-    last_macd_histogram = macd[-2] - macd_signal[-2]
-    current_macd_histogram = macd[-1] - macd_signal[-1]
-
-    # Alım, satım veya bekle mesajı oluşturma
-    message = ""
-    if last_macd_histogram < 0 and current_macd_histogram > 0:
-        message = f"ALIM: ETHTRY - Fiyat: {current_price}"
-    elif last_macd_histogram > 0 and current_macd_histogram < 0:
-        message = f"SATIM: ETHTRY - Fiyat: {current_price}"
-    else:
-        message = "BEKLE: ETHTRY"
-
-    # Mesajı gönderin
-    context.bot.send_message(chat_id='804636818', text=message)
-
-def main():
-    # Telegram botunun tokenini girin
-    updater = Updater(token='6247116301:AAFShT7Nk9yn-Hm5AfbPYPAO7EMDBV5TYOY', use_context=True)
-    dispatcher = updater.dispatcher
-
-    # Botun coin kontrol fonksiyonunu çalıştırması için bir handler ekleyin
-    job_queue = updater.job_queue
-    job_queue.run_repeating(check_coin, interval=300, first=0)
-
-    # Botu çalıştırın
-    updater.start_polling()
-    updater.idle()
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    while True:
+        send_signal("ETHTRY", "804636818")
+        send_signal("BTCTRY", "804636818")
+        time.sleep(60)  # 1 dakika boyunca uyut

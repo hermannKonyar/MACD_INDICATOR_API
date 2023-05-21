@@ -36,9 +36,9 @@ def get_parabolic_sar_data():
 
             # Generate signal
             signal = ''
-            if previous_sar < close_prices[-2] and current_sar > close_prices[-1]:
+            if previous_sar > close_prices[-2] and current_sar < close_prices[-1]:
                 signal = 'BUY'
-            elif previous_sar > close_prices[-2] and current_sar < close_prices[-1]:
+            elif previous_sar < close_prices[-2] and current_sar > close_prices[-1]:
                 signal = 'SELL'
 
             timestamp = int(time.time() * 1000)
